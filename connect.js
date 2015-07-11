@@ -19,9 +19,8 @@ var scratchOne = "a495ff21c5b14b44b5121370f02d74de",
 // Up to the three listed above. (Comma separated within brackets below.)
 var scratch = [scratchOne, scratchTwo, scratchThr, scratchFor, scratchFiv];
 // ******
-
-var devices = [];
-
+var names = process.argv;
+var devices = {};
 
 /* | Dependencie
  --|---------------------------------*/
@@ -47,11 +46,15 @@ var sendDataToOSC = null;
 var oscBuffer;
 var connectedBean = null;
 
-sendDataToOSC = function (characteristic, data) {
-    if (connectedBean != null) {
+sendDataToOSC = function (peripheral, characteristic, data) {
+    if (peripheral != null) {
+
+        var uuid = String(peripheral.uuid);
+        var name = String(peripheral.advertisement.localName);
+
         oscBuffer = osc.toBuffer({
             address: "/devices",
-            args: [connectedBean.uuid, connectedBean.advertisement.loacalName, characteristic, data]
+            args: [uuid, name, characteristic, data]
         });
 
         try {
@@ -72,6 +75,15 @@ sendDataToOSC = function (characteristic, data) {
 
 var beanUUID = "a495ff10c5b14b44b5121370f02d74de";
 
+var device_by_key = function(uuid) {
+    Object.keys(devices).forEach(function(key) {
+        if (key == uuid) {
+            return devices[key];
+        } else {
+            return false;
+        }
+    });
+};
 
 // This function takes values from Bean characteristics. It waits for new data to
 // come in and then sends that on to the OSC port.  
@@ -89,7 +101,7 @@ var returnValue = function (val) {
     return val;
 };
 
-var subscribeToChars = function (characteristics) {
+var subscribeToChars = function (characteristics, peripheral) {
 
     characteristics.forEach(function (characteristic, index) {
 
@@ -109,11 +121,11 @@ var subscribeToChars = function (characteristics) {
                 value2 = returnValue(value2);
 
                 if (value1 != false) {
-                    sendDataToOSC((scratchNumber * 2) - 1, value1); // To OSC
+                    sendDataToOSC(peripheral, (scratchNumber * 2) - 1, value1); // To OSC
                 }
 
                 if (value2 != false) {
-                    sendDataToOSC((scratchNumber * 2), value2); // To OSC
+                    sendDataToOSC(peripheral, (scratchNumber * 2), value2); // To OSC
                 }
 
             }
@@ -125,9 +137,9 @@ var subscribeToChars = function (characteristics) {
             if (err) throw err;
         });
 
-        console.log("Sending data for scratch #" + scratchNumber);
-
     });
+
+    console.log("Sending Data to OSC")
 
 };
 
@@ -135,7 +147,7 @@ var setupChars = function (peripheral) {
 
     peripheral.discoverSomeServicesAndCharacteristics([], scratch, function (err, services, characteristics) {
         if (err) throw err;
-        subscribeToChars(characteristics);
+        subscribeToChars(characteristics, peripheral);
     });
 
 };
@@ -147,32 +159,30 @@ var setupPeripheral = function (peripheral) {
     peripheral.connect(function (err) {
         if (err) throw err;
 
-        console.log('Connected!');
-        sendDataToOSC(3, 0);
-        connectedBean = peripheral; // Sets the global to the Bean. Yuck.
-        devices.push(peripheral);
-        console.log(peripheral);
+        console.log('Connected to ' + peripheral.advertisement.localName);
+
         setupChars(peripheral);
 
         peripheral.on('disconnect', function () {
-            console.log("The bean disconnected, trying to find it...");
-            //sendDataToOSC(4, 0);
-            //noble.startScanning();
+            console.log(peripheral.advertisement.localName + " has disconnected, trying to find it...");
         });
 
     });
 
 };
 
+
 noble.on('discover', function (peripheral) {
 
     if (_.contains(peripheral.advertisement.serviceUuids, beanUUID)) {
-        console.log("Found a Bean");
-        noble.stopScanning();
-        console.log("Stopped scanning.");
+        console.log("Found a Bean named: " + peripheral.advertisement.localName);
 
-        // Once found, connect:
-        setupPeripheral(peripheral);
+        if (!(peripheral.uuid in devices)) {
+            if (names.length <= 2 || names.indexOf(peripheral.advertisement.localName) > -1) {
+                devices[peripheral.uuid] = peripheral;
+                setupPeripheral(peripheral);
+            }
+        }
 
     } else {
         console.log("Found a random BLE device, that is not a Bean, ignored.");
@@ -194,19 +204,27 @@ process.stdin.resume(); //so the program will not close instantly
 /* | Exit Handler
  | Disconnects from the bean, in order to reset BLE comms. */
 
-var triedToExit = false;
-
 function exitHandler(options, err) {
-    if (connectedBean && !triedToExit) {
-        triedToExit = true;
-        console.log('Disconnecting from Bean...');
-        connectedBean.disconnect(function (err) {
-            console.log('Disconnected.');
-            process.exit();
+
+    noble.stopScanning();
+
+    var size = Object.keys(devices).length;
+    var count = 0;
+
+    Object.keys(devices).forEach(function(key) {
+        var peripheral = devices[key];
+        peripheral.disconnect(function (err) {
+            console.log('Disconnecting from: ' + peripheral.advertisement.localName);
+            count++;
+            if (count == size) {
+                setTimeout(function() {
+                    console.log('All devices disconnected, exiting.');
+                    process.exit();
+                }, 500);
+            }
         });
-    } else {
-        process.exit();
-    }
+    });
+
 }
 
 process.on('SIGINT', exitHandler.bind(null, {exit: true}));
