@@ -9,7 +9,7 @@ brew install node
 Once installed, in the directory that you have the `connect.js` file, run:
 
 ```
-npm install noble lodash osc-min --save
+npm install
 ```
 
 Now that you have the dependencies, you can run the connection by:
