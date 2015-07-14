@@ -21,6 +21,7 @@ var scratchOne = "a495ff21c5b14b44b5121370f02d74de",
 var scratch = [scratchOne, scratchTwo, scratchThr, scratchFor, scratchFiv];
 // ******
 var names = process.argv;
+var ports = {};
 var devices = {};
 
 /* | Dependencie
@@ -29,7 +30,18 @@ var devices = {};
 var noble = require('noble');
 var osc = require('osc-min');
 var dgram = require('dgram');
+var edn = require("jsedn");
+var fs = require('fs')
 var _ = require('lodash');
+
+/* | Read Port Conifguration
+ --|---------------------------------*/
+fs.readFile("port-record/mpr.edn", 'utf8', function(err, data) {
+    if (err) throw err;
+    console.log('Loaded port-record/mpr.edn');
+    ports = edn.toJS(edn.parse(data));
+    console.log(ports);
+});
 
 
 /* | OSC Werks
@@ -37,7 +49,7 @@ var _ = require('lodash');
 
 var udp = dgram.createSocket("udp4");
 
-var outport = 41234;
+var outport = ports[':device-server'];
 
 console.log("OSC will be sent to: http://localhost:" + outport);
 

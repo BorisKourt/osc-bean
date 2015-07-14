@@ -3,3 +3,4 @@ node_modules
 .idea
 connect_muse.js
 test.iml
+npm-debug.log
