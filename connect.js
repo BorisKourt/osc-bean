@@ -4,27 +4,8 @@ Buffer.prototype.toByteArray = function () {
     return Array.prototype.slice.call(this, 0);
 };
 
-// To-Do, test for disconnected.
 
-/* | LightBlue Bean to OSC via NOBLE.
- ---|---------------------------------*/
-
-var scratchOne = "a495ff21c5b14b44b5121370f02d74de",
-    scratchTwo = "a495ff22c5b14b44b5121370f02d74de",
-    scratchThr = "a495ff23c5b14b44b5121370f02d74de",
-    scratchFor = "a495ff24c5b14b44b5121370f02d74de",
-    scratchFiv = "a495ff25c5b14b44b5121370f02d74de";
-
-// ******
-// Adjust based on however many scratch characteristics you need to read. 
-// Up to the three listed above. (Comma separated within brackets below.)
-var scratch = [scratchOne, scratchTwo, scratchThr, scratchFor, scratchFiv];
-// ******
-var names = process.argv;
-var ports = {};
-var devices = {};
-
-/* | Dependencie
+/* | Dependencies
  --|---------------------------------*/
 
 var noble = require('noble');
@@ -34,9 +15,27 @@ var edn = require("jsedn");
 var fs = require('fs')
 var _ = require('lodash');
 
+
+/* | Globals
+ --|---------------------------------*/
+
+var scratchOne = "a495ff21c5b14b44b5121370f02d74de",
+    scratchTwo = "a495ff22c5b14b44b5121370f02d74de",
+    scratchThr = "a495ff23c5b14b44b5121370f02d74de",
+    scratchFor = "a495ff24c5b14b44b5121370f02d74de",
+    scratchFiv = "a495ff25c5b14b44b5121370f02d74de";
+
+var scratch = [scratchOne, scratchTwo, scratchThr, scratchFor, scratchFiv];
+
+var names = process.argv;
+var ports = {};
+var devices = {};
+var observed_devices = {};
+
+
 /* | Read Port Conifguration
  --|---------------------------------*/
-fs.readFile("port-record/mpr.edn", 'utf8', function(err, data) {
+fs.readFile("port-record/mpr.edn", 'utf8', function (err, data) {
     if (err) throw err;
     ports = edn.toJS(edn.parse(data));
 });
@@ -46,13 +45,9 @@ fs.readFile("port-record/mpr.edn", 'utf8', function(err, data) {
  --|---------------------------------*/
 
 var udp = dgram.createSocket("udp4");
-
-// Send Data Function
-
-var sendDataToOSC = null;
 var oscBuffer;
 
-sendDataToOSC = function (peripheral, characteristic, data) {
+var sendDataToOSC = function (peripheral, characteristic, data) {
 
     if (peripheral != null && ports[':processing-bean'] != undefined) {
 
@@ -81,12 +76,12 @@ sendDataToOSC = function (peripheral, characteristic, data) {
 
 
 /* | Bean communication
- ---|---------------------------------*/
+ --|---------------------------------*/
 
 var beanUUID = "a495ff10c5b14b44b5121370f02d74de";
 
-var device_by_key = function(uuid) {
-    Object.keys(devices).forEach(function(key) {
+var device_by_key = function (uuid) {
+    Object.keys(devices).forEach(function (key) {
         if (key == uuid) {
             return devices[key];
         } else {
@@ -94,9 +89,6 @@ var device_by_key = function(uuid) {
         }
     });
 };
-
-// This function takes values from Bean characteristics. It waits for new data to
-// come in and then sends that on to the OSC port.  
 
 var returnValue = function (val) {
 
@@ -185,8 +177,17 @@ var setupPeripheral = function (peripheral) {
 
 noble.on('discover', function (peripheral) {
 
+    if(!(peripheral.uuid in observed_devices)) {
+        observed_devices[peripheral.uuid] = {"name" : peripheral.advertisement.localName, "attempted" : false};
+    } else {
+        observed_devices[peripheral.uuid]["attempted"] = true;
+    }
+
     if (_.contains(peripheral.advertisement.serviceUuids, beanUUID)) {
-        console.log("    Found a Bean named: " + peripheral.advertisement.localName);
+
+        if (!observed_devices[peripheral.uuid]["attempted"]) {
+            console.log("    Found a Bean named: " + peripheral.advertisement.localName);
+        }
 
         if (!(peripheral.uuid in devices)) {
             if (names.length <= 2 || names.indexOf(peripheral.advertisement.localName) > -1) {
@@ -195,8 +196,6 @@ noble.on('discover', function (peripheral) {
             }
         }
 
-    } else {
-        console.log("    Found a random BLE device, that is not a Bean, ignored.");
     }
 
 });
@@ -204,8 +203,8 @@ noble.on('discover', function (peripheral) {
 
 noble.on('stateChange', function (state) {
     if (state == "poweredOn") {
-        console.log("\n\nStarted Scanning");
-        noble.startScanning([],true);
+        console.log("\n\n## Started Scanning");
+        noble.startScanning([], true);
     }
 });
 
@@ -217,13 +216,13 @@ process.stdin.resume(); //so the program will not close instantly
 
 function exitHandler(options, err) {
 
-    console.log('\n\nStarting Closing Sequence');
+    console.log('\n\n## Starting Closing Sequence');
     noble.stopScanning();
     console.log('-   Stopped Scanning');
 
     var size = Object.keys(devices).length;
     var count = 0;
-    var nastyTimeout;
+    var ensure_exit;
 
     if (size > 0) {
         Object.keys(devices).forEach(function (key) {
@@ -232,20 +231,24 @@ function exitHandler(options, err) {
                 console.log('-   Disconnecting from: ' + peripheral.advertisement.localName);
                 count++;
                 if (count == size) {
-                    clearTimeout(nastyTimeout);
+                    clearTimeout(ensure_exit);
                     setTimeout(function () {
-                        console.log('\nAll devices disconnected, exiting cleanly.\n');
+                        console.log('\n+ All devices disconnected. Exiting cleanly.\n');
                         process.exit();
                     }, 500);
                 }
             });
         });
     } else {
-        process.exit();
+        clearTimeout(ensure_exit);
+        setTimeout(function () {
+            console.log('\n+ Nothing to disconnect from. Exiting cleanly.\n');
+            process.exit();
+        }, 500);
     }
 
-    nastyTimeout = setTimeout(function () {
-        console.log('\nUnhandled exit, though all devices should be disconnected.\n');
+    ensure_exit = setTimeout(function () {
+        console.log('\n! Unhandled exit, though all devices should be disconnected.\n');
         process.exit();
     }, 5000);
 
