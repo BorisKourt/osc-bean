@@ -38,9 +38,7 @@ var _ = require('lodash');
  --|---------------------------------*/
 fs.readFile("port-record/mpr.edn", 'utf8', function(err, data) {
     if (err) throw err;
-    console.log('Loaded port-record/mpr.edn');
     ports = edn.toJS(edn.parse(data));
-    console.log(ports);
 });
 
 
@@ -49,20 +47,18 @@ fs.readFile("port-record/mpr.edn", 'utf8', function(err, data) {
 
 var udp = dgram.createSocket("udp4");
 
-var outport = ports[':device-server'];
-
-console.log("OSC will be sent to: http://localhost:" + outport);
-
 // Send Data Function
 
 var sendDataToOSC = null;
 var oscBuffer;
 
 sendDataToOSC = function (peripheral, characteristic, data) {
-    if (peripheral != null) {
+
+    if (peripheral != null && ports[':processing-bean'] != undefined) {
 
         var uuid = String(peripheral.uuid);
         var name = String(peripheral.advertisement.localName);
+        var outport = ports[':processing-bean'];
 
         oscBuffer = osc.toBuffer({
             address: "/devices",
@@ -77,6 +73,8 @@ sendDataToOSC = function (peripheral, characteristic, data) {
         }
 
         oscBuffer = null;
+    } else if (ports[':processing-bean'] == undefined) {
+        sendDataToOSC(peripheral, characteristic, data);
     }
 
 };
@@ -151,7 +149,7 @@ var subscribeToChars = function (characteristics, peripheral) {
 
     });
 
-    console.log("Sending Data to OSC")
+    console.log("  Sending Data to OSC from: " + peripheral.advertisement.localName);
 
 };
 
@@ -166,18 +164,18 @@ var setupChars = function (peripheral) {
 
 var setupPeripheral = function (peripheral) {
 
-    console.log('Connecting to ' + peripheral.advertisement.localName + '...');
+    console.log('  Connecting to ' + peripheral.advertisement.localName + '...');
 
     peripheral.connect(function (err) {
         if (err) throw err;
 
-        console.log('Connected to ' + peripheral.advertisement.localName);
+        console.log('  Connected successfully ' + peripheral.advertisement.localName);
 
         setupChars(peripheral);
 
         peripheral.on('disconnect', function () {
             delete devices[peripheral.uuid];
-            console.log(peripheral.advertisement.localName + " has disconnected.");
+            console.log("  " + peripheral.advertisement.localName + " has disconnected.");
         });
 
     });
@@ -188,7 +186,7 @@ var setupPeripheral = function (peripheral) {
 noble.on('discover', function (peripheral) {
 
     if (_.contains(peripheral.advertisement.serviceUuids, beanUUID)) {
-        console.log("Found a Bean named: " + peripheral.advertisement.localName);
+        console.log("  Found a Bean named: " + peripheral.advertisement.localName);
 
         if (!(peripheral.uuid in devices)) {
             if (names.length <= 2 || names.indexOf(peripheral.advertisement.localName) > -1) {
@@ -198,7 +196,7 @@ noble.on('discover', function (peripheral) {
         }
 
     } else {
-        console.log("Found a random BLE device, that is not a Bean, ignored.");
+        console.log("  Found a random BLE device, that is not a Bean, ignored.");
     }
 
 });
@@ -206,7 +204,7 @@ noble.on('discover', function (peripheral) {
 
 noble.on('stateChange', function (state) {
     if (state == "poweredOn") {
-        console.log("Started Scanning");
+        console.log("\n\nStarted Scanning");
         noble.startScanning([],true);
     }
 });
@@ -220,19 +218,22 @@ process.stdin.resume(); //so the program will not close instantly
 function exitHandler(options, err) {
 
     noble.stopScanning();
+    console.log('\n\nStarting Closing Sequence');
 
     var size = Object.keys(devices).length;
     var count = 0;
+    var nastyTimeout;
 
     if (size > 0) {
         Object.keys(devices).forEach(function (key) {
             var peripheral = devices[key];
             peripheral.disconnect(function (err) {
-                console.log('Disconnecting from: ' + peripheral.advertisement.localName);
+                console.log('  Disconnecting from: ' + peripheral.advertisement.localName);
                 count++;
                 if (count == size) {
+                    clearTimeout(nastyTimeout);
                     setTimeout(function () {
-                        console.log('All devices disconnected, exiting.');
+                        console.log('\nAll devices disconnected, exiting cleanly.\n');
                         process.exit();
                     }, 500);
                 }
@@ -241,6 +242,11 @@ function exitHandler(options, err) {
     } else {
         process.exit();
     }
+
+    nastyTimeout = setTimeout(function () {
+        console.log('\nUnhandled exit, though all devices should be disconnected.\n');
+        process.exit();
+    }, 5000);
 
 }
 
