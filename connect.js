@@ -4,6 +4,7 @@ Buffer.prototype.toByteArray = function () {
     return Array.prototype.slice.call(this, 0);
 };
 
+// To-Do, test for disconnected.
 
 /* | LightBlue Bean to OSC via NOBLE.
  ---|---------------------------------*/
@@ -44,7 +45,6 @@ console.log("OSC will be sent to: http://localhost:" + outport);
 
 var sendDataToOSC = null;
 var oscBuffer;
-var connectedBean = null;
 
 sendDataToOSC = function (peripheral, characteristic, data) {
     if (peripheral != null) {
@@ -164,7 +164,8 @@ var setupPeripheral = function (peripheral) {
         setupChars(peripheral);
 
         peripheral.on('disconnect', function () {
-            console.log(peripheral.advertisement.localName + " has disconnected, trying to find it...");
+            delete devices[peripheral.uuid];
+            console.log(peripheral.advertisement.localName + " has disconnected.");
         });
 
     });
@@ -194,7 +195,7 @@ noble.on('discover', function (peripheral) {
 noble.on('stateChange', function (state) {
     if (state == "poweredOn") {
         console.log("Started Scanning");
-        noble.startScanning();
+        noble.startScanning([],true);
     }
 });
 
@@ -211,19 +212,23 @@ function exitHandler(options, err) {
     var size = Object.keys(devices).length;
     var count = 0;
 
-    Object.keys(devices).forEach(function(key) {
-        var peripheral = devices[key];
-        peripheral.disconnect(function (err) {
-            console.log('Disconnecting from: ' + peripheral.advertisement.localName);
-            count++;
-            if (count == size) {
-                setTimeout(function() {
-                    console.log('All devices disconnected, exiting.');
-                    process.exit();
-                }, 500);
-            }
+    if (size > 0) {
+        Object.keys(devices).forEach(function (key) {
+            var peripheral = devices[key];
+            peripheral.disconnect(function (err) {
+                console.log('Disconnecting from: ' + peripheral.advertisement.localName);
+                count++;
+                if (count == size) {
+                    setTimeout(function () {
+                        console.log('All devices disconnected, exiting.');
+                        process.exit();
+                    }, 500);
+                }
+            });
         });
-    });
+    } else {
+        process.exit();
+    }
 
 }
 
