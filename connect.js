@@ -149,7 +149,7 @@ var subscribeToChars = function (characteristics, peripheral) {
 
     });
 
-    console.log("  Sending Data to OSC from: " + peripheral.advertisement.localName);
+    console.log("<-- Sending to port " + ports[':processing-bean'] + " from: " + peripheral.advertisement.localName);
 
 };
 
@@ -164,18 +164,18 @@ var setupChars = function (peripheral) {
 
 var setupPeripheral = function (peripheral) {
 
-    console.log('  Connecting to ' + peripheral.advertisement.localName + '...');
+    console.log('    Connecting to ' + peripheral.advertisement.localName + '...');
 
     peripheral.connect(function (err) {
         if (err) throw err;
 
-        console.log('  Connected successfully ' + peripheral.advertisement.localName);
+        console.log('+   Connected successfully to ' + peripheral.advertisement.localName);
 
         setupChars(peripheral);
 
         peripheral.on('disconnect', function () {
             delete devices[peripheral.uuid];
-            console.log("  " + peripheral.advertisement.localName + " has disconnected.");
+            console.log("!   " + peripheral.advertisement.localName + " has disconnected.");
         });
 
     });
@@ -186,7 +186,7 @@ var setupPeripheral = function (peripheral) {
 noble.on('discover', function (peripheral) {
 
     if (_.contains(peripheral.advertisement.serviceUuids, beanUUID)) {
-        console.log("  Found a Bean named: " + peripheral.advertisement.localName);
+        console.log("    Found a Bean named: " + peripheral.advertisement.localName);
 
         if (!(peripheral.uuid in devices)) {
             if (names.length <= 2 || names.indexOf(peripheral.advertisement.localName) > -1) {
@@ -196,7 +196,7 @@ noble.on('discover', function (peripheral) {
         }
 
     } else {
-        console.log("  Found a random BLE device, that is not a Bean, ignored.");
+        console.log("    Found a random BLE device, that is not a Bean, ignored.");
     }
 
 });
@@ -217,8 +217,9 @@ process.stdin.resume(); //so the program will not close instantly
 
 function exitHandler(options, err) {
 
-    noble.stopScanning();
     console.log('\n\nStarting Closing Sequence');
+    noble.stopScanning();
+    console.log('-   Stopped Scanning');
 
     var size = Object.keys(devices).length;
     var count = 0;
@@ -228,7 +229,7 @@ function exitHandler(options, err) {
         Object.keys(devices).forEach(function (key) {
             var peripheral = devices[key];
             peripheral.disconnect(function (err) {
-                console.log('  Disconnecting from: ' + peripheral.advertisement.localName);
+                console.log('-   Disconnecting from: ' + peripheral.advertisement.localName);
                 count++;
                 if (count == size) {
                     clearTimeout(nastyTimeout);
