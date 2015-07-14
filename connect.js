@@ -213,7 +213,7 @@ process.stdin.resume(); //so the program will not close instantly
 
 
 /* | Exit Handler
- | Disconnects from the bean, in order to reset BLE comms. */
+   | Disconnects from the bean, in order to reset BLE comms. */
 
 function exitHandler(options, err) {
 

@@ -9,14 +9,14 @@ Just extract the zip file and navigate to it in terminal.
 
 If you are on a Mac, please install Node through [homebrew](http://brew.sh/). 
 
-```
+```sh
 brew install node
 ```
 
 Once installed, navigate to the root of this repository in terminal. 
 There you need to setup the libraries that this depends on, just run:
 
-```
+```sh
 npm install
 ```
 
@@ -29,13 +29,13 @@ Low Energy connectivity, and the majority of this code interfaces with its funct
 
 Connect to any Beans in the area. 
 
-```
+```sh
 node connect.js
 ```
 
 Connect to device names that you specify explicitly, don't forget the quotes.
 
-```
+```sh
 node connect.js "device1name" "device2name"
 ```
 
