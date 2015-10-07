@@ -5,15 +5,16 @@ Buffer.prototype.toByteArray = function () {
 };
 
 
+
 /* | Dependencies
  --|---------------------------------*/
 
 var noble = require('noble');
-var osc = require('osc-min');
+var osc   = require('osc-min');
 var dgram = require('dgram');
-var edn = require("jsedn");
-var fs = require('fs')
-var _ = require('lodash');
+var edn   = require("jsedn");
+var fs    = require('fs');
+var _     = require('lodash');
 
 
 /* | Globals
@@ -46,6 +47,8 @@ fs.readFile("port-record/mpr.edn", 'utf8', function (err, data) {
 
 var udp = dgram.createSocket("udp4");
 var oscBuffer;
+var oscDebugBuffer;
+
 
 var sendDataToOSC = function (peripheral, characteristic, data) {
 
@@ -54,20 +57,30 @@ var sendDataToOSC = function (peripheral, characteristic, data) {
         var uuid = String(peripheral.uuid);
         var name = String(peripheral.advertisement.localName);
         var outport = ports[':processing-bean'];
+        var outport_sound = ports[':sound'];
+        var outport_dash = ports[':dashboard'];
 
         oscBuffer = osc.toBuffer({
             address: "/devices",
             args: [uuid, name, characteristic, data]
         });
 
+        //oscDebugBuffer = osc.toBuffer({
+        //    address: "/devices",
+        //    args: ["device"]
+        //});
+
         try {
             udp.send(oscBuffer, 0, oscBuffer.length, outport, "localhost");
+            udp.send(oscBuffer, 0, oscBuffer.length, outport_sound, "localhost");
+            udp.send(oscBuffer, 0, oscBuffer.length, outport_dash, "localhost");
         } catch (e) {
             console.log("Error Thrown:");
             console.log(e);
         }
 
         oscBuffer = null;
+        //oscDebugBuffer = null;
     } else if (ports[':processing-bean'] == undefined) {
         sendDataToOSC(peripheral, characteristic, data);
     }
@@ -142,6 +155,7 @@ var subscribeToChars = function (characteristics, peripheral) {
     });
 
     console.log("<-- Sending to port " + ports[':processing-bean'] + " from: " + peripheral.advertisement.localName);
+    console.log("<-- Sending to port " + ports[':sound'] + " from: " + peripheral.advertisement.localName);
 
 };
 

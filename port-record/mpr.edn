@@ -1,4 +1,4 @@
 {:device-server 41101
  :processing-bean 41102
- :debug 41103
+ :dashboard 41100
  :sound 41104}
