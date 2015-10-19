@@ -5,7 +5,6 @@ Buffer.prototype.toByteArray = function () {
 };
 
 
-
 /* | Dependencies
  --|---------------------------------*/
 
@@ -32,6 +31,16 @@ var names = process.argv;
 var ports = {};
 var devices = {};
 var observed_devices = {};
+
+/* | Printer
+ --|---------------------------------*/
+
+var pl = function(line, stats) {
+    console.log(line);
+    if (stats) {
+        console.log('     \\____ # Connected: ' + Object.keys(devices).length + '\n         | # Observed : ' + Object.keys(observed_devices).length + '\n');
+    }
+};
 
 
 /* | Read Port Conifguration
@@ -75,8 +84,8 @@ var sendDataToOSC = function (peripheral, characteristic, data) {
             udp.send(oscBuffer, 0, oscBuffer.length, outport_sound, "localhost");
             udp.send(oscBuffer, 0, oscBuffer.length, outport_dash, "localhost");
         } catch (e) {
-            console.log("Error Thrown:");
-            console.log(e);
+            pl("Error Thrown:", false);
+            pl(e, false);
         }
 
         oscBuffer = null;
@@ -154,8 +163,8 @@ var subscribeToChars = function (characteristics, peripheral) {
 
     });
 
-    console.log("<-- Sending to port " + ports[':processing-bean'] + " from: " + peripheral.advertisement.localName);
-    console.log("<-- Sending to port " + ports[':sound'] + " from: " + peripheral.advertisement.localName);
+    pl("<-- Sending to port " + ports[':processing-bean'] + " from: " + peripheral.advertisement.localName, false);
+    pl("<-- Sending to port " + ports[':sound'] + " from: " + peripheral.advertisement.localName, false);
 
 };
 
@@ -170,18 +179,18 @@ var setupChars = function (peripheral) {
 
 var setupPeripheral = function (peripheral) {
 
-    console.log('    Connecting to ' + peripheral.advertisement.localName + '...');
+    pl('    Connecting to ' + peripheral.advertisement.localName + '...', true);
 
     peripheral.connect(function (err) {
         if (err) throw err;
 
-        console.log('+   Connected successfully to ' + peripheral.advertisement.localName);
+        pl('+   Connected successfully to ' + peripheral.advertisement.localName, true);
 
         setupChars(peripheral);
 
         peripheral.on('disconnect', function () {
             delete devices[peripheral.uuid];
-            console.log("!   " + peripheral.advertisement.localName + " has disconnected.");
+            pl("!   " + peripheral.advertisement.localName + " has disconnected.", true);
         });
 
     });
@@ -200,7 +209,7 @@ noble.on('discover', function (peripheral) {
     if (_.contains(peripheral.advertisement.serviceUuids, beanUUID)) {
 
         if (!observed_devices[peripheral.uuid]["attempted"]) {
-            console.log("    Found a Bean named: " + peripheral.advertisement.localName);
+            pl("    Found a Bean named: " + peripheral.advertisement.localName, false);
         }
 
         if (!(peripheral.uuid in devices)) {
@@ -217,7 +226,7 @@ noble.on('discover', function (peripheral) {
 
 noble.on('stateChange', function (state) {
     if (state == "poweredOn") {
-        console.log("\n\n## Started Scanning");
+        pl("\n\n## Started Scanning", false);
         noble.startScanning([], true);
     }
 });
@@ -230,9 +239,9 @@ process.stdin.resume(); //so the program will not close instantly
 
 function exitHandler(options, err) {
 
-    console.log('\n\n## Starting Closing Sequence');
+    pl('\n\n## Starting Closing Sequence', true);
     noble.stopScanning();
-    console.log('-   Stopped Scanning');
+    pl('-   Stopped Scanning', false);
 
     var size = Object.keys(devices).length;
     var count = 0;
@@ -242,12 +251,12 @@ function exitHandler(options, err) {
         Object.keys(devices).forEach(function (key) {
             var peripheral = devices[key];
             peripheral.disconnect(function (err) {
-                console.log('-   Disconnecting from: ' + peripheral.advertisement.localName);
+                pl('-   Disconnecting from: ' + peripheral.advertisement.localName, false);
                 count++;
                 if (count == size) {
                     clearTimeout(ensure_exit);
                     setTimeout(function () {
-                        console.log('\n+ All devices disconnected. Exiting cleanly.\n');
+                        pl('\n+ All devices disconnected. Exiting cleanly.\n', false);
                         process.exit();
                     }, 500);
                 }
@@ -256,13 +265,13 @@ function exitHandler(options, err) {
     } else {
         clearTimeout(ensure_exit);
         setTimeout(function () {
-            console.log('\n+ Nothing to disconnect from. Exiting cleanly.\n');
+            pl('\n+ Nothing to disconnect from. Exiting cleanly.\n', false);
             process.exit();
         }, 500);
     }
 
     ensure_exit = setTimeout(function () {
-        console.log('\n! Unhandled exit, though all devices should be disconnected.\n');
+        pl('\n! Unhandled exit, though all devices should be disconnected.\n', false);
         process.exit();
     }, 5000);
 
